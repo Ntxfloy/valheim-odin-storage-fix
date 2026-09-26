@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Reflection;
 using BepInEx.Configuration;
 using HarmonyLib;
@@ -7,17 +7,16 @@ using UnityEngine;
 namespace OdinStorageFix
 {
     /// <summary>
-    /// РџР°С‚С‡Рё OdinStorageFix v1.0.4
-    /// РќРµ С‚СЂРѕРіР°РµРј OdinStorage.StorageTerminalUI С‡РµСЂРµР· typeof() вЂ” РІС‹Р·С‹РІР°Р»Рѕ РЅР°С‚РёРІРЅС‹Р№ РєСЂСЌС€ Mono.
-    /// OdinStorage.dll РїР°С‚С‡РёС‚СЃСЏ РЅР°РїСЂСЏРјСѓСЋ С‡РµСЂРµР· ValheimEffectListCompat (Cecil IL patcher).
-    /// Р—РґРµСЃСЊ С‚РѕР»СЊРєРѕ Р±РµР·РѕРїР°СЃРЅС‹Рµ РїР°С‚С‡Рё: Player, Piece, ZNetScene, OdinStorage.Plugin.
+    /// OdinStorageFix v1.0.5
+    /// Fixed FPS collapse caused by uncached AccessTools.TypeByName calls in Update().
+    /// Calls OdinStorage.StorageTerminalUI directly with zero reflection overhead.
     /// </summary>
     public static class Patches
     {
-        private static FieldInfo _hotkeyField;
-        private static FieldInfo _devToolsField;
-        private static FieldInfo _spawnKeyField;
-        private static FieldInfo _clearKeyField;
+        private static readonly FieldInfo _hotkeyField = AccessTools.Field(typeof(OdinStorage.Plugin), "Hotkey");
+        private static readonly FieldInfo _devToolsField = AccessTools.Field(typeof(OdinStorage.Plugin), "DevTools");
+        private static readonly FieldInfo _spawnKeyField = AccessTools.Field(typeof(OdinStorage.Plugin), "SpawnKey");
+        private static readonly FieldInfo _clearKeyField = AccessTools.Field(typeof(OdinStorage.Plugin), "ClearKey");
 
         // ===================== Player interact patch =====================
 
@@ -37,27 +36,19 @@ namespace OdinStorageFix
 
                 try
                 {
-                    // Р’С‹Р·С‹РІР°РµРј С‡РµСЂРµР· СЂРµС„Р»РµРєСЃРёСЋ вЂ” Р±РµР· typeof(StorageTerminalUI)
-                    var uiType = AccessTools.TypeByName("OdinStorage.StorageTerminalUI");
-                    if (uiType == null) return true;
-
-                    var createMethod = AccessTools.Method(uiType, "Create");
-                    var openMethod = AccessTools.Method(uiType, "Open");
-                    if (createMethod == null || openMethod == null) return true;
-
-                    createMethod.Invoke(null, null);
-                    openMethod.Invoke(null, new object[] { __instance.transform.position });
+                    OdinStorage.StorageTerminalUI.Create();
+                    OdinStorage.StorageTerminalUI.Open(__instance.transform.position);
                     return false;
                 }
                 catch (Exception ex)
                 {
-                    OdinStorageFixPlugin.Log.LogWarning($"[OdinStorageFix] PlayerInteract fallback: {ex.Message}");
+                    OdinStorageFixPlugin.Log.LogWarning($"[OdinStorageFix] PlayerInteract error: {ex.Message}");
                     return true;
                 }
             }
         }
 
-        // ===================== Piece.Awake вЂ” РїСЂРёРєСЂРµРїР»СЏРµРј FixedStorageTerminal =====================
+        // ===================== Piece.Awake - Attach FixedStorageTerminal =====================
 
         [HarmonyPatch(typeof(Piece), "Awake")]
         public static class PieceAwakePatch
@@ -77,7 +68,7 @@ namespace OdinStorageFix
             }
         }
 
-        // ===================== ZNetScene.Awake вЂ” РїСЂРёРєСЂРµРїР»СЏРµРј Рє РїСЂРµС„Р°Р±Сѓ =====================
+        // ===================== ZNetScene.Awake - Attach to prefab =====================
 
         [HarmonyPatch(typeof(ZNetScene), "Awake")]
         public static class ZNetSceneAwakePatch
@@ -94,7 +85,7 @@ namespace OdinStorageFix
             }
         }
 
-        // ===================== OdinStorage.Plugin.Update вЂ” РїРµСЂРµС…РІР°С‚ С…РѕС‚РєРµСЏ =====================
+        // ===================== OdinStorage.Plugin.Update - Direct call, zero reflection overhead =====================
 
         [HarmonyPatch(typeof(OdinStorage.Plugin), "Update")]
         public static class PluginUpdatePatch
@@ -104,42 +95,26 @@ namespace OdinStorageFix
                 if (Player.m_localPlayer == null)
                     return false;
 
-                if (_hotkeyField == null)
-                {
-                    _hotkeyField = AccessTools.Field(typeof(OdinStorage.Plugin), "Hotkey");
-                    _devToolsField = AccessTools.Field(typeof(OdinStorage.Plugin), "DevTools");
-                    _spawnKeyField = AccessTools.Field(typeof(OdinStorage.Plugin), "SpawnKey");
-                    _clearKeyField = AccessTools.Field(typeof(OdinStorage.Plugin), "ClearKey");
-                }
-
                 try
                 {
-                    var uiType = AccessTools.TypeByName("OdinStorage.StorageTerminalUI");
-                    if (uiType == null) return false;
-
-                    var isOpenProp = AccessTools.Property(uiType, "IsOpen");
-                    var createMethod = AccessTools.Method(uiType, "Create");
-                    var openMethod = AccessTools.Method(uiType, "Open");
-                    var closeMethod = AccessTools.Method(uiType, "Close");
-
-                    bool isOpen = isOpenProp != null && (bool)isOpenProp.GetValue(null);
+                    bool isOpen = OdinStorage.StorageTerminalUI.IsOpen;
 
                     var hotkeyEntry = _hotkeyField?.GetValue(null) as ConfigEntry<KeyboardShortcut>;
                     if (hotkeyEntry != null && hotkeyEntry.Value.IsDown())
                     {
                         if (isOpen)
-                            closeMethod?.Invoke(null, null);
+                            OdinStorage.StorageTerminalUI.Close();
                         else
                         {
-                            createMethod?.Invoke(null, null);
-                            openMethod?.Invoke(null, new object[] { Player.m_localPlayer.transform.position });
+                            OdinStorage.StorageTerminalUI.Create();
+                            OdinStorage.StorageTerminalUI.Open(Player.m_localPlayer.transform.position);
                         }
                         return false;
                     }
 
                     if (isOpen && Input.GetKeyDown(KeyCode.Escape))
                     {
-                        closeMethod?.Invoke(null, null);
+                        OdinStorage.StorageTerminalUI.Close();
                         return false;
                     }
 

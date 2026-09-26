@@ -1,7 +1,7 @@
 ﻿{
     "name":  "OdinStorage_ModernFix",
     "author":  "Ntxfloy",
-    "version_number":  "1.0.4",
+    "version_number":  "1.0.5",
     "website_url":  "https://github.com/Ntxfloy/OdinStorageFix",
     "description":  "Compatibility fix for OdinStorage on modern Valheim (Ashlands / 1.0+). Fixes terminal piece [E] interaction, item deposit/withdraw actions, direct UI hotkey opening, and chest markers. Requires ValheimEffectListCompat \u003e= 0.1.8 for the Character.Message API fix.",
     "dependencies":  [

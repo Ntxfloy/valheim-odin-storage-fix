@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using BepInEx;
 using BepInEx.Logging;
 using HarmonyLib;
@@ -12,7 +12,7 @@ namespace OdinStorageFix
     {
         public const string PluginGuid = "com.ntxfloy.odinstoragefix";
         public const string PluginName = "OdinStorage Fix";
-        public const string PluginVersion = "1.0.4";
+        public const string PluginVersion = "1.0.5";
 
         internal static ManualLogSource Log;
         private Harmony _harmony;
@@ -22,9 +22,6 @@ namespace OdinStorageFix
             Log = Logger;
             _harmony = new Harmony(PluginGuid);
 
-            // РџР°С‚С‡Рё С‚РѕР»СЊРєРѕ РЅР° Р±РµР·РѕРїР°СЃРЅС‹Рµ С‚РёРїС‹.
-            // StorageTerminalUI РќР• РїР°С‚С‡РёС‚СЃСЏ С‡РµСЂРµР· typeof() вЂ” Mono РєСЂСЌС€РёР»СЃСЏ.
-            // OdinStorage.dll РїР°С‚С‡РёС‚СЃСЏ С‡РµСЂРµР· ValheimEffectListCompat (Cecil IL patcher).
             SafePatch(typeof(Patches.PlayerInteractPatch));
             SafePatch(typeof(Patches.PieceAwakePatch));
             SafePatch(typeof(Patches.ZNetSceneAwakePatch));
